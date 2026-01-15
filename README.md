@@ -23,6 +23,7 @@ These skills encode a specific, opinionated stack and craft so you don't have to
 | [`drizzle`](skills/drizzle/SKILL.md) | Data layer — Drizzle ORM schema, relations, queries, type inference, and drizzle-kit migrations (Cloudflare D1 / SQLite focused). |
 | [`cloudflare-workers`](skills/cloudflare-workers/SKILL.md) | Edge runtime & platform — Workers execution model, bindings (D1/KV/R2/Queues), `wrangler` config, secrets, local dev, and deploy. |
 | [`aws-architect`](skills/aws-architect/SKILL.md) | Choose the right compute and orchestration — Lambda vs Fargate vs containers, Step Functions, Lambda durable, EventBridge, Scheduler. |
+| [`aws-cdk`](skills/aws-cdk/SKILL.md) | Author AWS CDK in TypeScript — L1/L2/L3 constructs, patterns, community constructs, testing, and guardrails. |
 | [`clean-code`](skills/clean-code/SKILL.md) | Refactor toward clean, modular, DRY TypeScript — single source of truth, functional composition, redundancy removal. |
 | [`tdd`](skills/tdd/SKILL.md) | Drive code with behavior-first tests and a disciplined red-green-refactor loop — no testing of implementation details. |
 
