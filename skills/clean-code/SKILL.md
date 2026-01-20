@@ -139,3 +139,50 @@ Aim for **total functions** (defined for every input of their type) — narrow t
 
 ---
 
+## 2. DRY & single source of truth
+
+DRY is about **single source of knowledge**, not "no two lines look alike". Two snippets that change for *different reasons* aren't duplication — leave them.
+
+### Derive types from one schema — never re-declare a shape
+```ts
+// before — three copies drift apart
+const userSchema = z.object({ id: z.string(), email: z.string() });
+interface User { id: string; email: string }      // duplicate
+type UserDTO = { id: string; email: string };      // duplicate
+
+// after — schema (or DB table) is the single source; types are inferred
+const userSchema = z.object({ id: z.string(), email: z.string() });
+type User = z.infer<typeof userSchema>;
+// Drizzle: type User = typeof users.$inferSelect;  type NewUser = typeof users.$inferInsert;
+```
+
+### Centralize constants & config
+No magic literals scattered across files; one canonical definition, imported.
+```ts
+// constants.ts
+export const PAGE_SIZE = 50;
+export const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
+```
+
+### The right abstraction vs premature abstraction
+- **Rule of three:** extract on the third occurrence, not the first.
+- **Wrong-abstraction tell:** a shared function bristling with boolean flags / `if (mode === …)` branches that exist only to serve different callers. Inline it and let the call sites differ.
+- One **canonical domain model**; map to DTOs/view models at the boundary rather than letting four near-identical `User`-ish types breed.
+
+---
+
+## 3. Modularization & architecture
+
+- **Cohesion high, coupling low.** A module does one thing; things that change together live together.
+- **Feature folders over layer folders** for app code — colocate `feature/x/{api,model,ui}` so a change touches one folder, not five. Keep cross-cutting layers (`db`, `http`) only for genuinely shared infrastructure.
+- **Dependency direction points at abstractions.** Core logic depends on interfaces; concrete IO (Stripe, Postgres) depends inward and is injected. Cycles are a smell — break them by extracting the shared type.
+```ts
+// core defines the port; the adapter implements it. Core never imports the adapter.
+interface Clock { now(): number }
+const decide = (inv: Invoice, clock: Clock) => /* ... */;
+```
+- **Barrel files (`index.ts` re-exports):** convenient, but they hurt — they defeat tree-shaking, create import cycles, and slow type-checking. Use sparingly at true public package boundaries; never as an internal "dump everything" file.
+- **Small, single-purpose functions.** If you can't name it without "and", split it. But a 30-line linear function with no branching is fine — don't shred it into callback soup.
+
+---
+
