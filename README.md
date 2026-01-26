@@ -26,6 +26,7 @@ These skills encode a specific, opinionated stack and craft so you don't have to
 | [`aws-cdk`](skills/aws-cdk/SKILL.md) | Author AWS CDK in TypeScript — L1/L2/L3 constructs, patterns, community constructs, testing, and guardrails. |
 | [`clean-code`](skills/clean-code/SKILL.md) | Refactor toward clean, modular, DRY TypeScript — single source of truth, functional composition, redundancy removal. |
 | [`tdd`](skills/tdd/SKILL.md) | Drive code with behavior-first tests and a disciplined red-green-refactor loop — no testing of implementation details. |
+| [`performance`](skills/performance/SKILL.md) | Review and fix performance using browser devtools, Core Web Vitals, profiling, and bundle analysis. |
 
 ## Install
 
