@@ -137,3 +137,29 @@ when services are autonomous and you optimize for decoupling and independent evo
 - **EventBridge Pipes:** prefer over a hand-written "Lambda that reads from X and writes to Y" when
   the logic is just filter + light transform between a source and a target.
 
+### Scheduling
+
+| Use | Pick |
+|---|---|
+| One-off or recurring schedule, millions of schedules, per-schedule target | **EventBridge Scheduler** (default for new work) |
+| Legacy cron rule already on an event bus | CloudWatch Events / EventBridge rule cron (fine, but Scheduler is the modern choice) |
+| Sub-minute / dynamic / app-controlled timing | cron-in-app: a long-running consumer, or Step Functions `Wait`, or DynamoDB TTL trigger |
+
+- **Choose EventBridge Scheduler** for almost all scheduled work: one-time + recurring, time zones,
+  flexible windows, scales to millions, decoupled from any bus. Avoid `cron` inside a Lambda loop
+  (you pay for sleep and lose at-least-once delivery guarantees).
+
+---
+
+## Supporting decisions (they shape the core choice)
+
+### API / ingress layer
+
+| Option | Choose when | Avoid when |
+|---|---|---|
+| **API Gateway HTTP API** | REST-ish JSON APIs, JWT auth, lowest cost/latency of the gateways | you need request validation, API keys/usage plans, WAF-per-method, edge caching |
+| **API Gateway REST API** | need usage plans, API keys, request/response transforms, fine-grained throttling, WAF | cost/latency-sensitive simple APIs (use HTTP API) |
+| **ALB → Lambda/Fargate** | container services, header/path routing, existing ALB, sticky long connections | pure serverless JSON API with no LB need (gateway is simpler) |
+| **Lambda Function URL** | single-function webhook/endpoint, no gateway features needed | you need auth/routing/throttling across many routes |
+| **AppSync (GraphQL)** | client-driven GraphQL, real-time subscriptions, multiple data sources merged | simple REST CRUD (overkill) |
+
