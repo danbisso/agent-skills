@@ -128,3 +128,43 @@ it("rejects an order with no line items", () => {
 
 These assert *outcomes*. Refactor the internals however you like; as long as a valid order ends up paid with the right total and an empty one is rejected, they stay green. They also document the contract better than the spies did.
 
+### Use real collaborators; mock only at true boundaries
+
+Mocking *everything* is the most common way to manufacture brittle tests and false confidence: you end up asserting that your code calls the mocks the way you told the mocks to expect — a tautology that proves nothing about real behavior, yet shatters on every refactor.
+
+- **Prefer real collaborators.** A real `OrderService` with a real in-memory repository exercises the actual integration. If a pure function or value object is cheap to construct, use the real thing.
+- **Use a test double only at a genuine boundary** you don't control or that is non-deterministic: **network** (third-party HTTP), **time** (`Date.now`, clocks), **randomness** (`crypto`, `Math.random`), **filesystem**, and external processes. These are where mocking buys determinism and speed honestly.
+- **Inject the boundary** so the seam is explicit: pass `now: () => Date` and `randomId: () => string` as dependencies rather than calling globals. Then tests supply fixed values and become deterministic without any framework magic.
+
+```ts
+// boundary injected → deterministic, no global stubbing
+function makeToken(deps: { now: () => number; rand: () => string }) {
+  return `${deps.rand()}-${deps.now()}`;
+}
+it("builds a token from id and timestamp", () => {
+  expect(makeToken({ now: () => 1700, rand: () => "abc" })).toBe("abc-1700");
+});
+```
+
+## Designing good tests
+
+- **Arrange-Act-Assert.** Three visible phases. Set up the world, perform one action, assert one logical outcome. Blank lines between them.
+- **One behavior per test.** Multiple `expect`s are fine if they describe a single behavior (status + total of one outcome). Two *unrelated* behaviors → two tests.
+- **Name the behavior, not the method.** `returns 0 for an empty cart`, not `test priceCart`. The name should read as a sentence about the system, and a failing test name alone should tell you what broke.
+- **Trophy / pyramid balance.** Many fast unit tests over pure logic; a focused band of integration tests over real wiring (route → db); very few slow end-to-end tests for critical user journeys. Don't invert it — an e2e-heavy suite is slow, flaky, and gives vague failures.
+- **Test data builders.** A `buildOrder(overrides)` helper keeps each test focused on the one field it varies and survives schema additions. Avoid giant shared fixtures every test reads from differently.
+- **Parametrize** repetitive cases with `it.each` so the table of inputs→outputs is the documentation.
+- **Cover edge cases and error paths** deliberately: empty, zero, negative, boundary, overflow, the thrown error, the rejected promise. These are where bugs live; the happy path rarely surprises.
+- **Determinism.** No real clock, no real RNG, no real network, no test ordering dependence. Inject them. A flaky test is worse than no test — it erodes trust in the whole suite.
+- **No shared mutable state.** Build fresh state per test (`beforeEach` or a factory). Tests that pass alone but fail together (or in a different order) are leaking state.
+
+```ts
+it.each([
+  { cart: [], expected: 0 },
+  { cart: [{ unitPrice: 250, qty: 2 }], expected: 500 },
+  { cart: [{ unitPrice: 100, qty: 0 }], expected: 0 },
+])("prices $cart.length lines to $expected", ({ cart, expected }) => {
+  expect(priceCart(cart)).toBe(expected);
+});
+```
+
