@@ -111,3 +111,67 @@ export class OrdersStack extends cdk.Stack {
 - **HTTP API** (`aws-apigatewayv2` + `aws-apigatewayv2-integrations`) — cheaper/faster than REST API; default to it for new HTTP services.
 - **REST API** (`apigateway.RestApi` / `LambdaRestApi`) — when you need request validation, usage plans, API keys, WAF tie-in, or fine-grained method config.
 
+### Messaging, events, scheduling
+
+```ts
+const queue = new sqs.Queue(this, 'Jobs', {
+  visibilityTimeout: cdk.Duration.seconds(60), // >= 6x lambda timeout for SQS-triggered fns
+  deadLetterQueue: { queue: dlq, maxReceiveCount: 3 }, // ALWAYS set a DLQ
+});
+queue.grantConsumeMessages(worker);
+worker.addEventSource(new SqsEventSource(queue, { batchSize: 10 }));
+
+topic.addSubscription(new subs.SqsSubscription(queue)); // SNS fan-out -> SQS
+
+// EventBridge rule (event-pattern driven):
+new events.Rule(this, 'OnOrder', {
+  eventPattern: { source: ['orders'], detailType: ['OrderCreated'] },
+  targets: [new targets.LambdaFunction(handler)],
+});
+
+// EventBridge Scheduler (modern cron/rate; prefer over Rule schedules for new work):
+new scheduler.Schedule(this, 'Nightly', {
+  schedule: scheduler.ScheduleExpression.cron({ minute: '0', hour: '3' }),
+  target: new schedulerTargets.LambdaInvoke(handler, {}),
+});
+```
+
+### Step Functions
+
+Use `aws-stepfunctions` + `aws-stepfunctions-tasks`. Compose with `.next()` / `Choice` / `Parallel`; tasks carry their own IAM.
+
+```ts
+const submit = new tasks.LambdaInvoke(this, 'Submit', { lambdaFunction: submitFn });
+const wait = new sfn.Wait(this, 'Wait', { time: sfn.WaitTime.duration(cdk.Duration.minutes(5)) });
+const definition = submit.next(wait).next(new tasks.LambdaInvoke(this, 'Check', { lambdaFunction: checkFn }));
+new sfn.StateMachine(this, 'Pipeline', {
+  definitionBody: sfn.DefinitionBody.fromChainable(definition),
+  stateMachineType: sfn.StateMachineType.STANDARD,
+});
+```
+
+### Fargate behind an ALB (L3 pattern)
+
+```ts
+import { ApplicationLoadBalancedFargateService } from 'aws-cdk-lib/aws-ecs-patterns';
+
+const vpc = new ec2.Vpc(this, 'Vpc', { maxAzs: 2, natGateways: 1 });
+const cluster = new ecs.Cluster(this, 'Cluster', { vpc });
+
+const svc = new ApplicationLoadBalancedFargateService(this, 'Web', {
+  cluster,
+  cpu: 512,
+  memoryLimitMiB: 1024,
+  desiredCount: 2,
+  taskImageOptions: {
+    image: ecs.ContainerImage.fromAsset('./service'), // builds + pushes to ECR
+    containerPort: 8080,
+    environment: { NODE_ENV: 'production' },
+  },
+  publicLoadBalancer: true,
+});
+svc.targetGroup.configureHealthCheck({ path: '/health' });
+svc.service.autoScaleTaskCount({ maxCapacity: 10 })
+  .scaleOnCpuUtilization('Cpu', { targetUtilizationPercent: 60 });
+```
+
