@@ -181,3 +181,52 @@ await db.delete(posts).where(inArray(posts.id, ids));
 
 Common operators: `eq`, `ne`, `and`, `or`, `not`, `inArray`/`notInArray`, `like`/`ilike` (PG), `gt`/`gte`/`lt`/`lte`, `between`, `isNull`/`isNotNull`. See `query-cookbook.md` for upsert, conditional `where`, subqueries, and `$count`.
 
+## D1 transactions — use `db.batch`, NOT `db.transaction`
+
+**D1 does not support Drizzle's interactive `db.transaction()`** (it needs multiple round-trips over a connection D1 doesn't expose). It will throw at runtime. For atomic multi-statement writes, use **`db.batch([...])`** — all statements run in one D1 request, in order, as a single implicit transaction.
+
+```ts
+// Atomic: create a post and its tag links together, or none.
+const [post] = await db.insert(posts).values({ authorId, title, body }).returning();
+await db.batch([
+  db.insert(postTags).values({ postId: post.id, tagId: 1 }),
+  db.insert(postTags).values({ postId: post.id, tagId: 2 }),
+  db.update(users).set({ /* touch */ }).where(eq(users.id, authorId)),
+]);
+// Returns a tuple of each statement's result, in order.
+```
+
+Note `batch` statements **cannot read each other's results** mid-flight — compute dependent values first (as with `post.id` above, which needs its own prior insert). For Postgres/MySQL, real `db.transaction(async (tx) => { ... })` works normally.
+
+## Repository pattern — testable data functions
+
+Business logic = plain async functions of `(db, input)`. No HTTP, no `env`. `frontend-dev` loaders/actions call these; `tdd` tests them against a real local D1.
+
+```ts
+import type { DB } from "./db";
+import { users, posts } from "./schema";
+import { eq, desc } from "drizzle-orm";
+
+export async function getUserWithRecentPosts(db: DB, userId: number) {
+  return db.query.users.findFirst({
+    where: (u, { eq }) => eq(u.id, userId),
+    with: { posts: { orderBy: (p, { desc }) => desc(p.createdAt), limit: 5 } },
+  });
+}
+
+export async function createPost(db: DB, input: typeof posts.$inferInsert) {
+  const [row] = await db.insert(posts).values(input).returning();
+  return row;
+}
+```
+
+**Prepared statements** for hot, repeated queries — compile once, bind placeholders per call:
+
+```ts
+import { sql } from "drizzle-orm";
+const userById = db.query.users
+  .findFirst({ where: (u, { eq }) => eq(u.id, sql.placeholder("id")) })
+  .prepare();
+const u = await userById.execute({ id: 42 });
+```
+
