@@ -227,3 +227,9 @@ export function getSessionStorage(env: Env) {
 
 In a protected loader: read the cookie, look up the user (D1), and `throw redirect("/login")` when unauthenticated — throwing short-circuits to the redirect. Cookie session storage is ideal on Workers (no server state); for larger sessions, store a session id in the cookie and the payload in D1 or KV.
 
+## TypeScript rules
+
+- No `any`. Type loaders/actions via `Route.*`; derive db row types from `$inferSelect`/`$inferInsert`; bindings from generated `Env`.
+- `useLoaderData<typeof loader>()` / the `loaderData` prop carries the loader's return type — don't re-annotate it.
+- Keep server-only types and code behind `.server.ts` so they never leak into the client bundle.
+
