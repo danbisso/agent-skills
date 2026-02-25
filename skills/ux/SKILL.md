@@ -59,3 +59,36 @@ For each meaningful screen/region, design all that apply:
 | **Success** | Confirm the outcome (toast/inline), show the new state, and offer the obvious next step. |
 | **Offline / degraded** | Detect via `navigator.onLine` + failed fetch; tell the user, queue or disable mutations, auto-recover on reconnect. |
 
+## Usability heuristics — apply concretely
+- **#1 Visibility of status:** see feedback rules above.
+- **#2 Match the real world:** user-language labels, real-world ordering, sensible defaults.
+- **#3 User control & freedom:** every flow has cancel/back/undo; confirm destructive actions or offer undo.
+- **#4 Consistency & standards:** same word for same thing; standard placements (logo→home, primary action bottom-right of forms).
+- **#5 Error prevention:** constrain inputs, sensible defaults, confirm irreversible actions, disable invalid submit.
+- **#6 Recognition over recall:** show options/recently-used; don't make users remember values across steps.
+- **#7 Flexibility:** keyboard shortcuts and bulk actions for power users without burdening novices.
+- **#8 Minimalist:** remove anything not serving the current task; reduce cognitive load (chunk, default, hide advanced).
+- **#9 Error recovery:** plain language, no codes/jargon, name the fix.
+- **#10 Help:** contextual help where the question arises, not a separate manual.
+- **Fitts:** make frequent/primary targets bigger and closer; put them at edges/corners (infinitely deep on screen edges).
+- **Hick:** fewer choices = faster decisions; stage choices, use smart defaults, collapse rare options.
+
+## Accessibility (WCAG 2.2 AA) — first-class, not a pass at the end
+- **Keyboard:** every interactive element reachable and operable by keyboard; visible focus indicator (never `outline:none` without a replacement); logical tab order = visual order; no keyboard traps. Provide a skip-to-content link.
+- **Focus management on SPA route change (critical):** after a RR7 navigation, move focus to the new view's `<h1>` (or a focusable region) and announce it, e.g. an `aria-live="polite"` route-change announcer. Otherwise screen-reader and keyboard users are stranded at the old position. Return focus to the trigger when a dialog/menu closes.
+- **Semantic structure:** landmarks (`<header><nav><main><footer>`), one `<h1>` per view, no skipped heading levels, lists for lists, tables for tabular data with `<th scope>`.
+- **Names & roles:** every control has an accessible name (visible label, `aria-label`, or `aria-labelledby`). Icon-only buttons need a name. Decorative images `alt=""`; meaningful images get real alt text.
+- **Forms a11y:** label association, `aria-invalid`, `aria-describedby` for errors/hints, `aria-required`, group fields with fieldset/legend.
+- **Contrast:** text ≥ 4.5:1 (≥3:1 for large/bold ≥24px or ≥19px bold); UI components & focus indicators ≥ 3:1. Flag failures to `designer`.
+- **WCAG 2.2 specifics:** focus not obscured by sticky headers (2.4.11); target size ≥24px min, prefer 44px (2.5.8); dragging actions need a single-pointer alternative (2.5.7); no auth that requires a cognitive memory test without an alternative (3.3.8).
+- **Reduced motion:** honor `prefers-reduced-motion`; disable parallax/auto-animation, keep only essential transitions.
+- **Live regions:** async status (toasts, validation, search results count) goes in `aria-live` so it's announced without stealing focus.
+- **Color independence:** status/required/selected conveyed by text+icon, not hue alone.
+
+## Microcopy & content design
+- **Buttons** name the outcome: "Save changes", "Place order" — not "Submit"/"OK".
+- **Errors:** what happened + how to fix, user language, no blame. Bad: "Invalid input." Good: "Enter a valid email like name@example.com."
+- **Empty states:** one sentence of what lives here + the action to fill it.
+- **Confirmations** restate the consequence: "Delete 3 invoices? This can't be undone."
+- **Labels & hints** short, front-load the keyword; hint text for format, not as the only label.
+
