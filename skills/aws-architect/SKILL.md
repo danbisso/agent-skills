@@ -163,3 +163,23 @@ when services are autonomous and you optimize for decoupling and independent evo
 | **Lambda Function URL** | single-function webhook/endpoint, no gateway features needed | you need auth/routing/throttling across many routes |
 | **AppSync (GraphQL)** | client-driven GraphQL, real-time subscriptions, multiple data sources merged | simple REST CRUD (overkill) |
 
+### Data store fit
+
+| Store | Choose when | Avoid when |
+|---|---|---|
+| **DynamoDB** | known key-based access patterns, single-digit-ms, serverless scale, high write throughput, TTL/streams | ad-hoc queries, complex joins, strong relational integrity |
+| **Aurora Serverless v2** | relational + variable/spiky load, want autoscaling capacity, SQL with joins | ultra-spiky-to-zero with cold tolerance (v2 has a min ACU floor); pure KV |
+| **RDS (provisioned)** | steady relational load, predictable capacity, mature SQL features | bursty/zero-idle workloads (idle instance burn) |
+| **S3** | objects/blobs, data lake, event source, cheap durable storage, static assets | low-latency record lookups or transactional state |
+
+- **Lambda + relational DB:** always front RDS/Aurora with **RDS Proxy** to avoid connection
+  exhaustion from concurrent invocations. DynamoDB sidesteps this entirely (HTTP, no pooling).
+
+### Sync vs async
+
+- **Sync** (API Gateway → Lambda → response) when the caller needs the result now and the work fits
+  the timeout (gateway integration timeout 29s; keep well under). 
+- **Async** (queue/event + worker, return 202 + status lookup or webhook) when work is slow,
+  spiky, or must survive downstream failure. Default to async for anything that can take >a few
+  seconds or fan out.
+
