@@ -175,3 +175,37 @@ svc.service.autoScaleTaskCount({ maxCapacity: 10 })
   .scaleOnCpuUtilization('Cpu', { targetUtilizationPercent: 60 });
 ```
 
+### Secrets, SSM, alarms
+
+- **Secrets never in code.** Use `secretsmanager.Secret` (auto-generate with `generateSecretString`) and `secret.grantRead(fn)`; inject via `secret.secretValueFromJson('key')` or as an env ref, never a literal. Plain config → `ssm.StringParameter`. Reading an existing secret: `Secret.fromSecretNameV2`.
+- **Alarms:** `metric.createAlarm(...)` or `new cloudwatch.Alarm(...)`; wire actions with `aws-cloudwatch-actions` (e.g. SNS). For dashboards/alarms at scale, prefer `cdk-monitoring-constructs` (below).
+
+## Reusable L3 constructs of your own
+
+When you repeat a multi-resource pattern, wrap it in a `Construct` with a typed props interface and sane defaults. This is how you scale a CDK codebase.
+
+```ts
+export interface WorkerProps {
+  readonly entry: string;
+  readonly queueName?: string;
+  readonly maxReceiveCount?: number; // default 3
+}
+
+export class QueueWorker extends Construct {
+  readonly queue: sqs.Queue;
+  readonly fn: NodejsFunction;
+  constructor(scope: Construct, id: string, props: WorkerProps) {
+    super(scope, id);
+    const dlq = new sqs.Queue(this, 'Dlq');
+    this.queue = new sqs.Queue(this, 'Queue', {
+      deadLetterQueue: { queue: dlq, maxReceiveCount: props.maxReceiveCount ?? 3 },
+    });
+    this.fn = new NodejsFunction(this, 'Fn', { entry: props.entry, runtime: Runtime.NODEJS_22_X });
+    this.fn.addEventSource(new SqsEventSource(this.queue));
+    this.queue.grantConsumeMessages(this.fn);
+  }
+}
+```
+
+Props: `readonly`, optional-with-default for anything not always required, expose the underlying constructs as public readonly fields so callers can `.grant`/`.addAlarm` on them.
+
