@@ -82,3 +82,41 @@ When asked to critique a real URL (the user's site or a reference), **see it**, 
 
 **3. Score against the rubric**, then convert scores into **ranked, specific fixes.** See `design-review-rubric.md` for the full scoring sheet and severity guide.
 
+### Review rubric (score each 1–5)
+
+| # | Dimension | What 5 looks like |
+| --- | --- | --- |
+| 1 | **Hierarchy** | One clear primary focus per view; eye lands where intended; size/weight/space carry order |
+| 2 | **Typography** | Consistent modular scale; correct measure & line-height; ≤3 weights; tightened large headings |
+| 3 | **Color & contrast** | Restrained palette, semantic roles; all text/UI meets WCAG; dark mode handled, not inverted |
+| 4 | **Spacing & rhythm** | Single spacing scale; consistent section/group gaps; aligned to a grid; no arbitrary px |
+| 5 | **Consistency** | Components, radii, shadows, icon set, button styles uniform across the page |
+| 6 | **Polish & detail** | Optical alignment, hairline borders, soft consistent shadows, considered empty/hover/focus states |
+| 7 | **Brand fit** | Look matches stated personality/direction; not generic; intentional, not effect-piled |
+
+Weight by impact: hierarchy, type, and contrast usually dominate perceived quality. A page can be "consistent" and still feel cheap if hierarchy is flat.
+
+**4. Deliver findings ranked by impact**, each tied to a concrete change in Tailwind/token terms so `frontend-design` can implement directly. Group as P1 (breaks the experience / fails a11y), P2 (clearly cheapens it), P3 (refinement).
+
+### Example finding (the required output format)
+
+> **P1 — Hero headline lacks hierarchy and fails contrast.** (Hierarchy 2/5, Color 2/5)
+> The H1 renders at `text-xl font-normal text-zinc-400` over `bg-white`. It competes with body copy (same weight) and measures 3.2:1 — below the 4.5:1 minimum. The eye lands on the colored nav, not the headline.
+> **Before:** `class="text-xl font-normal text-zinc-400"`
+> **After:** `class="text-4xl md:text-5xl font-semibold tracking-tight text-zinc-900 max-w-[18ch]"` → token: keep using `text-zinc-900` (≈15:1). Re-weight the nav links to `text-zinc-500 font-normal` so they recede.
+> *Impact:* establishes the single primary focus and clears WCAG AA. Hand to `frontend-design` to apply.
+
+Every finding follows this shape: **severity + dimension + scores → what's wrong with measured evidence → before class/value → after class/value → impact.** Never ship a vague verb ("modernize", "tighten up") without the concrete change next to it.
+
+## Using references without copying
+
+- Gather 3–5 reference sites/products in the target category (ask the user, or pull well-regarded examples). Capture them the same way you'd review.
+- For each, **extract the principle, not the pixels:** "uses a single accent and lets neutrals breathe", "headline at ~5xl with tight tracking and short measure", "one elevation level, hairline dividers". Build a short list of transferable moves.
+- **Translate into a direction** that fits the user's brand and content — combine principles, choose your own type/color/spacing values. Copying a competitor's exact palette/layout is both a legal and a taste failure. The deliverable is a one-paragraph direction + a starter token set (hand specifics to `frontend-design`).
+
+## Hand-off checklist (what you produce)
+
+- A one-sentence **direction** statement when defining a look.
+- **Ranked findings** in the before→after format above, each with a Tailwind class / token value / numeric step.
+- Color decisions as **semantic roles + concrete values**; type as a **named scale**; spacing as scale steps — all in terms `frontend-design` can wire.
+- Explicit cross-references: `frontend-design` to implement, `ux` for any flow/usability issues you noticed but don't own, `performance` for heavy fonts/images.
