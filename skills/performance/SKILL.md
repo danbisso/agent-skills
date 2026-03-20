@@ -101,3 +101,31 @@ For a flame chart / main-thread analysis, capture a trace with `page.context().t
 
 **No browser available?** Ask the user to paste a **Lighthouse JSON/HTML report**, a **DevTools Performance trace export (`.json`)**, or their **CrUX/RUM dashboard numbers**. You can still rank findings from a trace or report — just say the baseline is user-supplied.
 
+## Frontend fixes (mapped to React Router 7 + Tailwind + Cloudflare Workers)
+
+**Ship less / later JavaScript**
+- **Route-based code splitting is free in RR7** — each route is its own chunk; don't undo it by importing heavy routes eagerly. Lazy-load heavy *non-route* widgets with `React.lazy` + `<Suspense>` or dynamic `import()` (charts, editors, maps). Confirm the saving in a Coverage run.
+- Render-blocking: keep third-party scripts off the critical path — `defer`/`async`, or load post-interaction. Audit the `<head>`; analytics/tag-managers are the usual LCP killers.
+- Tree-shake and check the bundle (`rollup-plugin-visualizer`); a single fat dep (moment, lodash-es misimport, an icon set imported whole) often dwarfs your code.
+
+**Render fast, don't shift**
+- **SSR + streaming in RR7:** return the page shell immediately and *defer* slow data — return the unawaited promise from the loader and render with `<Await>`/`<Suspense>`. This drops TTFB-to-LCP because the shell paints before the slow query resolves. (See `frontend-dev` for the loader recipe.)
+- **Kill loader waterfalls:** independent queries go in `Promise.all`; never sequential `await`s on the critical path. A serial loader chain directly inflates TTFB and LCP.
+- **Prefetch** likely next routes: `<Link prefetch="intent">` (on hover/focus) or `"render"` — RR7 warms the route chunk + loader data so the next navigation is instant.
+
+**Fonts** (FOIT/CLS + render-block)
+- `font-display: swap` (or `optional`), **preload** the one critical font (`<link rel="preload" as="font" crossorigin>`), self-host + subset to the glyphs used. Set `size-adjust`/fallback metrics to avoid the swap causing CLS.
+
+**Images** (biggest LCP & CLS lever)
+- Always set `width`/`height` (or `aspect-ratio`) so the box is reserved → no CLS. `loading="lazy"` for below-the-fold, **eager + `fetchpriority="high"`** for the LCP image. Serve responsive `srcset`/`sizes` and modern formats (AVIF/WebP). Don't lazy-load the LCP image — that's a classic self-inflicted LCP regression. Coordinate sizing/format with `designer`/`ux`.
+
+**CSS / Tailwind**
+- Tailwind already purges unused classes via content scanning — verify `content` globs are correct so prod CSS is tiny. Inline critical CSS for the shell if FCP is render-blocked by the stylesheet. Use the Coverage panel to see unused CSS%.
+
+**Edge / caching (Cloudflare)**
+- Hashed, immutable assets → `Cache-Control: public, max-age=31536000, immutable`. Serve static assets from the CDN/edge, not the Worker. Cache HTML/loader responses at the edge (Cache API / `cf.cacheEverything`) where data freshness allows. Edge caching is often the single biggest TTFB win.
+
+**React-specific** (apply only where measured)
+- Eliminate **wasted renders** first (React DevTools Profiler → "why did this render"). Reach for `memo`/`useMemo`/`useCallback` **only where the profiler shows it pays** — premature memoization adds cost and noise.
+- **Stable keys** (never array index for dynamic lists) to avoid remount churn. **Virtualize** long lists (react-virtual/virtuoso) — don't render 5,000 DOM nodes. Place **Suspense boundaries** to stream slow subtrees without blocking the shell.
+
