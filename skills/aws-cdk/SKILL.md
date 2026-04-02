@@ -209,3 +209,22 @@ export class QueueWorker extends Construct {
 
 Props: `readonly`, optional-with-default for anything not always required, expose the underlying constructs as public readonly fields so callers can `.grant`/`.addAlarm` on them.
 
+### Tags, aspects, removal policies
+
+- **Tagging:** `cdk.Tags.of(scope).add('app', 'orders')` propagates to all taggable children. Tag at App/Stage level for cost allocation.
+- **Aspects** visit every node in the tree — use for cross-cutting enforcement (require tags, force encryption, add removal policies). cdk-nag is implemented as an Aspect.
+- **Removal policies:** `RETAIN` for stateful resources; combine with `terminationProtection: true` on the stateful stack. For dev-only throwaway data, `DESTROY` + `autoDeleteObjects: true` (S3) is fine — gate it on environment, never blanket-apply.
+
+## Community ecosystem — reach for these, don't reinvent
+
+Browse Construct Hub (constructs.dev) before hand-rolling. Accurate, current packages:
+
+- **cdk-nag** (`cdk-nag`) — Aspect that checks a stack against rule packs (AWS Solutions, HIPAA, NIST, PCI). Run in synth/tests; suppress individual findings with justification. Default security gate.
+- **AWS Solutions Constructs** (`@aws-solutions-constructs/*`) — vetted, well-architected multi-service L3s (e.g. `aws-apigateway-lambda`, `aws-lambda-dynamodb`) with secure defaults. Use when one matches your topology.
+- **projen** (`projen`) — manages project config (tsconfig, jest, package.json, GH Actions) as code via `.projenrc.ts`. Strong for libraries/monorepos; opinionated — adopt deliberately.
+- **cdk-monitoring-constructs** (`cdk-monitoring-constructs`) — declarative dashboards + alarms across services with one fluent API. Reach for it instead of hand-building dozens of `Alarm`s.
+- **@cdklabs/* and @aws-cdk/*-alpha** — experimental/L2-in-progress (e.g. apigatewayv2 graduated; some remain alpha). Alpha = unstable API; pin versions and expect breaking changes.
+- **open-next / SST** — higher-level app frameworks that emit CDK under the hood for Next.js/serverless apps. Use the framework OR raw CDK; don't fight both.
+
+Build your own L3 only when no community construct fits or its opinions conflict with a hard requirement. Don't invent package names — if unsure it exists, check Construct Hub.
+
