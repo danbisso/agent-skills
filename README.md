@@ -28,6 +28,19 @@ These skills encode a specific, opinionated stack and craft so you don't have to
 | [`tdd`](skills/tdd/SKILL.md) | Drive code with behavior-first tests and a disciplined red-green-refactor loop — no testing of implementation details. |
 | [`performance`](skills/performance/SKILL.md) | Review and fix performance using browser devtools, Core Web Vitals, profiling, and bundle analysis. |
 
+## How skills relate
+
+```
+designer ──┐                                    ┌──► drizzle
+ux ────────┼──► frontend-design ──► frontend-dev ┤
+           │           │                  │      └──► cloudflare-workers
+           └─ review   └─ clean-code ◄─────┴──► tdd ◄──► performance
+
+backend / heavier workloads:  aws-architect ──► aws-cdk
+```
+
+Each `SKILL.md` cross-links the siblings it most often hands off to.
+
 ## Install
 
 Skills live in a `skills/` directory that Claude Code discovers. Pick one:
