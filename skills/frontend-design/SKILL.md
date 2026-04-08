@@ -156,3 +156,31 @@ When matching a comp:
 - **Build every state, not just the resting one.** For each interactive element ship: `hover`, `focus-visible`, `active`, `disabled`, `loading`, and where relevant `empty` and `error`. A design that looks done but has no focus ring or loading state is not done.
 - **Type:** match font-size *and* line-height *and* letter-spacing; the last is the one people forget and it's why text "looks off."
 
+## Implementing / maintaining a design system
+
+Directory layout (under your React Router 7 app):
+
+```
+app/
+  styles/
+    app.css            # @import tailwindcss + @theme tokens (primitive + semantic)
+  components/
+    ui/                # design-system primitives: button.tsx, input.tsx, card.tsx, ...
+    ui/variants.ts     # shared cva/tv definitions if reused across components
+  components/patterns/ # composed, app-specific blocks (PageHeader, EmptyState)
+```
+
+- **Naming carries meaning** — `Button`/`intent`/`primary`, not `BlueBtn`/`type`/`v1`. Variant prop names describe the design axis; values describe the role.
+- **Keep code and design in sync.** Token names should mirror the designer's named styles. When the designer renames "Brand Blue" to "Accent," rename the token, not just the value. Drift between Figma names and code names is the slow death of a design system.
+- **Document at the source.** Each primitive's variant matrix IS its documentation — a Storybook story or an MDX page per component beats a separate spec.
+
+## Cross-links — stay in lane
+
+- **`designer`** — the look itself (palette, type pairing, hierarchy, taste). If the comp is wrong or missing, hand off; don't invent visual decisions here.
+- **`ux`** — flows, IA, interaction semantics, accessibility beyond mechanics. Loading/empty/error *states* are yours to build; deciding the *flow* between them is theirs.
+- **`frontend-dev`** — wiring components into routes, loaders/actions, data, forms-with-server-state, deployment to Workers/D1.
+- **`clean-code`** — when component sprawl, prop explosion, or duplicated variant logic needs refactoring.
+
+## Before you call it done
+
+Run `design-review-checklist.md` against the implementation.
