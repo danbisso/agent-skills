@@ -183,3 +183,54 @@ when services are autonomous and you optimize for decoupling and independent evo
   spiky, or must survive downstream failure. Default to async for anything that can take >a few
   seconds or fan out.
 
+### Cross-cutting requirements (don't ship without deciding these)
+
+- **Idempotency:** any at-least-once consumer (SQS, SNS, EventBridge, Kinesis) can redeliver. Make
+  handlers idempotent — idempotency key + dedup store (DynamoDB conditional write), or natural
+  upsert. Mandatory for payment/order/email side-effects.
+- **Dead-letter queues:** attach a DLQ to every async consumer (SQS redrive policy, Lambda async
+  DLQ/on-failure destination, EventBridge target DLQ). Alarm on DLQ depth > 0.
+- **Observability:** structured JSON logs; **EMF** to emit metrics from logs without extra calls;
+  **X-Ray** tracing across the async chain; alarm on error rate, throttles, DLQ depth, and (for
+  Step Functions) failed executions.
+- **IAM least-privilege:** one role per function/task, scoped to the exact resources/actions. No
+  wildcard `*` resources in production.
+- **VPC or not (Lambda):** stay **out** of a VPC unless you must reach private resources (RDS,
+  ElastiCache, internal services) — VPC adds cold-start/ENI overhead and NAT cost. If you only call
+  AWS APIs and public endpoints, no VPC.
+
+---
+
+## Pattern recipes (well-architected serverless)
+
+1. **Event-driven ingestion.**
+   `API Gateway HTTP API` → Lambda (validate, write) → DynamoDB → DynamoDB Streams → EventBridge →
+   downstream consumers. Idempotent writes; DLQ on each consumer. Use when ingest must be cheap,
+   spiky-tolerant, and fan out to multiple reactions.
+
+2. **Async job processing.**
+   `API` returns **202** + job id → publishes to **SQS** → worker (Lambda if <15 min, else Fargate
+   task) → writes result + status to DynamoDB → optional SNS/EventBridge "job done" event. DLQ +
+   redrive on the queue. Use for slow/heavy work behind a fast API.
+
+3. **Scheduled batch.**
+   **EventBridge Scheduler** → Step Functions (**Distributed Map** over the batch) → Fargate tasks
+   for the heavy per-item work → aggregate results to S3/DynamoDB. Use for nightly/periodic large
+   batch with parallelism and retry/visibility.
+
+4. **Webhook handling (3rd-party callbacks).**
+   **Lambda Function URL** or HTTP API → verify signature → enqueue to **SQS** immediately, return
+   200 fast → worker processes async. Never do heavy work in the webhook request path (providers
+   retry on slow responses → duplicates; idempotency required).
+
+5. **Fan-out / aggregate (map-reduce).**
+   Trigger → Step Functions **Map** (or SNS→many SQS) fans work to N parallel workers → results to a
+   DynamoDB/S3 collector → aggregation step emits a completion event. Use Step Functions Map when
+   you need per-branch retry/visibility; SNS fan-out when workers are fully independent.
+
+6. **Streaming pipeline (high volume, ordered).**
+   Producers → **Kinesis Data Streams** → Lambda or Step Functions **Express** per batch → sink
+   (S3/DynamoDB/OpenSearch). Use when ordering, replay, and multiple consumers matter.
+
+---
+
