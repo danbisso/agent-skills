@@ -186,3 +186,73 @@ const decide = (inv: Invoice, clock: Clock) => /* ... */;
 
 ---
 
+## 4. Code-smell catalog (quick reference)
+
+Each smell → its refactor. Full examples in [code-smells.md](code-smells.md).
+
+| Smell | Refactor |
+|---|---|
+| Long function | Extract named sub-functions; separate the *what* from the *how* |
+| Long parameter list | Pass one options object; or introduce a parameter type |
+| Boolean / flag arg | Split into two intent-named functions (`renderEditable` vs `renderReadonly`) |
+| Primitive obsession | Wrap in a branded type / small value type (`type Email = string & {__brand}`) |
+| Deep nesting | Guard clauses + early return; invert conditions |
+| Feature envy | Move the method to the data it keeps reaching into |
+| Shotgun surgery | Consolidate the scattered knowledge into one module |
+| Data clumps | Group fields that always travel together into a type |
+| Dead code | Delete it — git remembers; don't comment it out |
+| Speculative generality | Remove unused params/hooks/abstractions added "for later" |
+| Leaky abstraction | Hide the implementation detail behind a stable interface |
+
+### Guard clauses (the most common quick win)
+```ts
+// before — arrow of doom
+function price(o: Order) {
+  if (o) {
+    if (o.items.length) {
+      if (o.coupon) { /* ... */ }
+    }
+  }
+}
+// after — handle exits first, happy path unindented
+function price(o: Order) {
+  if (!o) return 0;
+  if (!o.items.length) return 0;
+  const base = subtotal(o.items);
+  return o.coupon ? applyCoupon(base, o.coupon) : base;
+}
+```
+
+---
+
+## 5. TypeScript-specific cleanliness
+
+- **Eliminate `any`.** It disables checking and silently spreads. Use `unknown` at untrusted boundaries (parsed JSON, `catch`) and narrow before use.
+```ts
+// before
+function parse(json: any) { return json.user.name; }
+// after
+function parse(json: unknown): string {
+  const r = userSchema.safeParse(json);
+  if (!r.success) throw new Error('bad payload');
+  return r.data.email;
+}
+try { /* ... */ } catch (e: unknown) { if (e instanceof Error) log(e.message); }
+```
+- **Lean on inference** for locals/returns; annotate only public APIs and where inference is wrong or too wide. Don't restate what TS already knows.
+- **Utility types** instead of hand-maintained variants: `Pick`, `Omit`, `Partial`, `Required`, `Parameters<typeof f>`, `ReturnType<typeof f>`, `Awaited<>`.
+- **Unions over enums** in most app code: `type Status = 'open' | 'closed'` is a plain string at runtime, tree-shakes, and pattern-matches in a `switch`. Reach for `enum` only when you need a reverse map or a stable numeric wire value; never mix the two styles in one codebase.
+- Prefer `type` for unions/intersections/derived shapes; `interface` for objects you expect others to `extends` or declaration-merge.
+
+---
+
+## 6. Disciplined cleanup workflow (messy existing code)
+
+1. **Characterize.** Read the module; note its public surface and current behavior. Don't refactor what you don't understand.
+2. **Get a safety net.** Run the existing tests. If coverage is thin, write characterization tests that pin *current* behavior (warts included) before touching anything — see the `tdd` skill.
+3. **Format/lint as its own commit** so the real diff isn't drowned in whitespace.
+4. **Refactor in micro-steps**, test green after each: rename → extract function → introduce type → invert condition → de-duplicate. Commit per step.
+5. **Keep behavior identical.** Spotting a bug mid-refactor? Note it; fix it in a *separate* commit with its own test so the change is reviewable.
+6. **Stop when it's clear enough.** Clean is a means, not an end — don't gold-plate a module nobody touches.
+
+Then apply the result in context: the `frontend-dev` and `aws-cdk` skills cover the surrounding stacks, and `performance` covers when to deliberately break a clean-code rule on a measured hot path.
