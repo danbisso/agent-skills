@@ -129,3 +129,12 @@ For a flame chart / main-thread analysis, capture a trace with `page.context().t
 - Eliminate **wasted renders** first (React DevTools Profiler → "why did this render"). Reach for `memo`/`useMemo`/`useCallback` **only where the profiler shows it pays** — premature memoization adds cost and noise.
 - **Stable keys** (never array index for dynamic lists) to avoid remount churn. **Virtualize** long lists (react-virtual/virtuoso) — don't render 5,000 DOM nodes. Place **Suspense boundaries** to stream slow subtrees without blocking the shell.
 
+## Backend / data performance
+
+- **N+1 queries (Drizzle):** the dominant backend cost on this stack — D1 round-trip latency makes per-row queries brutal. Replace with one set-based query (`with:`/join). Detect by counting queries per request in a trace or query log.
+- **Indexing:** index the columns you filter/sort/join on; verify with `EXPLAIN QUERY PLAN`. A missing index turns a 2ms lookup into a full scan.
+- **Payload size:** select only needed columns, paginate, avoid shipping whole tables to the client. Smaller loader payloads → faster TTFB and less hydration cost.
+- **Compression:** ensure responses are gzip/brotli (Cloudflare does this at the edge — confirm it's on for your content types).
+- **Workers constraints:** no module-level connection pools (request-scoped runtime); build the db per request from `context`. Bounded CPU per request — push set-based work into SQL, use `ctx.waitUntil` for fire-and-forget so it doesn't block the response.
+- **Cold starts / caching layers:** if TTFB spikes are cold-start-driven on other infra, that's an `aws-architect` handoff. On Workers, add a caching layer (Cache API / KV) for hot, slow-to-compute responses.
+
