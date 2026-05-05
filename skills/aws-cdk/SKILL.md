@@ -228,3 +228,61 @@ Browse Construct Hub (constructs.dev) before hand-rolling. Accurate, current pac
 
 Build your own L3 only when no community construct fits or its opinions conflict with a hard requirement. Don't invent package names — if unsure it exists, check Construct Hub.
 
+## Testing — tie to `tdd`
+
+Use `aws-cdk-lib/assertions`. Synthesize, then assert on the template. Prefer fine-grained assertions over snapshots for behavior you care about; keep one snapshot as a change tripwire.
+
+```ts
+import { Template, Match } from 'aws-cdk-lib/assertions';
+import * as cdk from 'aws-cdk-lib';
+import { OrdersStack } from '../lib/orders-stack';
+
+test('handler gets least-privilege table access', () => {
+  const stack = new OrdersStack(new cdk.App(), 'Test');
+  const t = Template.fromStack(stack);
+
+  t.resourceCountIs('AWS::DynamoDB::Table', 1);
+  t.hasResourceProperties('AWS::Lambda::Function', {
+    Runtime: 'nodejs22.x',
+    Timeout: 10,
+  });
+  // the grant emitted exactly read+write, scoped to the table ARN:
+  t.hasResourceProperties('AWS::IAM::Policy', {
+    PolicyDocument: Match.objectLike({
+      Statement: Match.arrayWith([
+        Match.objectLike({ Action: Match.arrayWith(['dynamodb:PutItem']) }),
+      ]),
+    }),
+  });
+});
+
+test('template matches snapshot', () => {
+  const stack = new OrdersStack(new cdk.App(), 'Snap');
+  expect(Template.fromStack(stack).toJSON()).toMatchSnapshot();
+});
+```
+
+### cdk-nag in tests
+
+```ts
+import { Annotations, Match } from 'aws-cdk-lib/assertions';
+import { AwsSolutionsChecks, NagSuppressions } from 'cdk-nag';
+import { Aspects } from 'aws-cdk-lib';
+
+test('no unsuppressed cdk-nag errors', () => {
+  const app = new cdk.App();
+  const stack = new OrdersStack(app, 'Nag');
+  Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
+
+  // Suppress with justification where a finding is a deliberate choice:
+  NagSuppressions.addResourceSuppressions(stack, [
+    { id: 'AwsSolutions-IAM5', reason: 'Wildcard scoped to this table only via grant.' },
+  ], true);
+
+  const errors = Annotations.fromStack(stack).findError('*', Match.stringLikeRegexp('AwsSolutions-.*'));
+  expect(errors).toHaveLength(0);
+});
+```
+
+Wire `AwsSolutionsChecks` as an Aspect in the app entrypoint too, so `cdk synth` fails CI on violations, not just unit tests.
+
