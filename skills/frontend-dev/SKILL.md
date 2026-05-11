@@ -233,3 +233,17 @@ In a protected loader: read the cookie, look up the user (D1), and `throw redire
 - `useLoaderData<typeof loader>()` / the `loaderData` prop carries the loader's return type — don't re-annotate it.
 - Keep server-only types and code behind `.server.ts` so they never leak into the client bundle.
 
+## Testing seams (see `tdd`)
+
+- Keep business logic in plain functions that take `db` + inputs, so they're unit-testable without HTTP. Loaders/actions become thin adapters.
+- For integration, run against a local D1 (Miniflare/workerd via the Cloudflare Vite plugin) seeded with migrations. Don't mock Drizzle; test against a real local SQLite-backed D1.
+
+## Gotchas
+
+- Wrong imports: it's `react-router` / `@react-router/dev` / `@react-router/cloudflare`, never `@remix-run/*`.
+- Module-level `drizzle(env.DB)` — impossible on Workers, env only exists per request. Build the db inside loader/action from `context`.
+- Importing `~/db/*` or a `.server.ts` module into a component → client bundle leak / build error. Keep db access in loaders/actions only.
+- `db.transaction()` assuming Postgres-style interactive transactions — use `db.batch()` on D1.
+- Throwing for form validation (nukes the page to the error boundary) vs returning errors (re-renders the form). Return for recoverable, throw for not-found/fatal.
+- Sequential `await`s in a loader causing request waterfalls — `Promise.all`.
+- Forgetting `nodejs_compat` then importing a Node built-in → runtime crash on the Worker. Either add the flag or use a Web-standard API.
