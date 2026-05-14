@@ -230,3 +230,50 @@ const userById = db.query.users
 const u = await userById.execute({ id: 42 });
 ```
 
+## Migrations — drizzle-kit generates SQL, **wrangler applies it on D1**
+
+`drizzle-kit` produces SQL from the schema; on D1 the migration **runner is wrangler**, not drizzle-kit.
+
+```ts
+// drizzle.config.ts
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  dialect: "sqlite",            // "postgresql" | "mysql" otherwise
+  schema: "./src/schema.ts",
+  out: "./drizzle",             // generated .sql + meta live here
+  // For inspecting/pushing to REMOTE D1 over HTTP (not for the wrangler-applied flow):
+  driver: "d1-http",
+  dbCredentials: {
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+    databaseId: process.env.CLOUDFLARE_DATABASE_ID!,
+    token: process.env.CLOUDFLARE_D1_TOKEN!,
+  },
+});
+```
+
+Workflow:
+- `npx drizzle-kit generate` — diff schema vs. migration history, write a versioned `.sql` file + meta into `./drizzle`. **Commit these.** This is the D1 path.
+- Apply on D1 with **wrangler** (it tracks applied migrations in D1):
+  - `npx wrangler d1 migrations apply <DB_NAME> --local` (local dev DB)
+  - `npx wrangler d1 migrations apply <DB_NAME> --remote` (production)
+  - Point wrangler's `migrations_dir` at `./drizzle` in `wrangler.toml` (config detail lives in `cloudflare-workers`).
+- `drizzle-kit push` — pushes the schema **directly** to a DB, skipping SQL files. Fine for rapid local prototyping; **do not** use it as the production D1 flow (no version history, and wrangler should own application). Prefer `generate` + `wrangler apply`.
+- `drizzle-kit studio` — browse data; `drizzle-kit check` — detect migration collisions.
+
+## Performance & testing (defer to siblings)
+- **Perf** (depth in `performance`): avoid N+1 — prefer one relational query with `with` or a single join over a loop of queries; select only needed columns; index columns used in `where`/`orderBy`/join (`index`/`uniqueIndex` above); use prepared statements for hot paths.
+- **Testing** (depth in `tdd`): run data functions against a **real local D1** (Vitest + `@cloudflare/vitest-pool-workers`, or Miniflare's D1). **Do not mock Drizzle or D1** — you'd test the mock, not the SQL. Apply migrations to a fresh DB per suite.
+
+## Gotchas
+- `db.transaction()` throws on D1 — use `db.batch()` (rule 2).
+- Timestamps need `mode: "timestamp"` to get `Date` objects; without it you get raw integers. `mode: "timestamp_ms"` for millisecond precision.
+- Booleans are integers — use `mode: "boolean"`; comparing against `true`/`1` directly without the mode bites you.
+- `findFirst` returns `T | undefined` (not `null`) — handle the undefined case.
+- Foreign-key cascades only fire with `PRAGMA foreign_keys = ON` (SQLite default is OFF).
+- `.returning()` works on D1/SQLite and Postgres, **not MySQL**.
+- Always pass `{ schema }` to `drizzle()` or `db.query.*` won't exist.
+- Don't restate row types — derive from `$inferSelect`/`$inferInsert` (`clean-code`).
+- Raw escape hatch when the builder can't express it: `db.run(sql\`...\`)` / `sql\`...\`` fragments — keep these rare and parameterized.
+
+See `query-cookbook.md` for upsert, conditional filters, subqueries, pagination, and `db.batch` patterns.
