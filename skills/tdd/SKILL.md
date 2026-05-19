@@ -168,3 +168,83 @@ it.each([
 });
 ```
 
+## Applying it to this stack (Vitest)
+
+**Pure functions / the functional core.** The functional core from `clean-code` is the easiest thing in the codebase to test: deterministic inputs → deterministic outputs, no setup, no mocks. Push logic into pure functions precisely so it can be tested this way, and keep the imperative shell thin enough that a few integration tests cover it.
+
+**React Router 7 loaders & actions are plain functions.** A loader/action takes `{ request, params, context }` and returns data or a `Response`. Test it by calling it directly — no router, no DOM:
+
+```ts
+it("action returns a 400 with a field error when title is blank", async () => {
+  const request = new Request("http://t/new", {
+    method: "POST",
+    body: new URLSearchParams({ title: "" }),
+  });
+  const res = await action({ request, params: {}, context: testContext });
+  expect(res.status).toBe(400);
+  expect(await res.json()).toMatchObject({ errors: { title: expect.any(String) } });
+});
+```
+
+Assert on status, redirect `Location`, and returned data — the loader's contract — not on which db helper it happened to call.
+
+**Components via Testing Library, by user-visible behavior.** Query by role and text the way a user perceives the UI; act through `userEvent`; assert on what the user would see. Never query by class name or test internal component state. (Ties to `frontend-dev` / `frontend-design` for what you're rendering.)
+
+```ts
+it("shows the error message when submitting an empty title", async () => {
+  render(<NewTaskForm />);
+  await userEvent.click(screen.getByRole("button", { name: /create/i }));
+  expect(await screen.findByText(/title is required/i)).toBeInTheDocument();
+});
+```
+
+This test survives a refactor from `useState` to `useReducer`, from one component to three — because it only knows what the user knows. A test that asserts `wrapper.state.error === "..."` would not.
+
+**Integration against real D1/Drizzle — don't mock the ORM.** Mocking Drizzle means asserting query-builder call chains: pure HOW, and it never catches a real SQL or schema mistake. Instead run against a real local SQLite (`better-sqlite3`, or a Miniflare-style D1 binding) with your migrations applied, in a transaction or fresh in-memory db per test. You exercise actual SQL, constraints, and serialization.
+
+```ts
+let db: ReturnType<typeof drizzle>;
+beforeEach(async () => {
+  db = drizzle(new Database(":memory:"));
+  await migrate(db);
+});
+it("findActiveTasks excludes archived rows", async () => {
+  await db.insert(tasks).values([
+    { id: "1", state: "active" },
+    { id: "2", state: "archived" },
+  ]);
+  const rows = await findActiveTasks(db);
+  expect(rows.map((r) => r.id)).toEqual(["1"]); // observable result, real query
+});
+```
+
+**CDK via `aws-cdk-lib/assertions`.** Synthesize the stack to a template and assert on the resources/properties it declares — the observable output of your infra code — not on construct internals. (Ties to `aws-cdk`.)
+
+```ts
+import { Template } from "aws-cdk-lib/assertions";
+it("provisions the table with point-in-time recovery on", () => {
+  const template = Template.fromStack(new AppStack(new App(), "Test"));
+  template.hasResourceProperties("AWS::DynamoDB::Table", {
+    PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true },
+  });
+});
+```
+
+## When NOT to TDD, and pragmatism
+
+- **Spikes / exploration.** When you're learning an API or feeling out a design, skip tests — then *delete the spike* and rebuild test-first. Don't promote spike code to production untested.
+- **Throwaway and exploratory UI.** Visual exploration, one-off scripts, prototypes you'll discard: tests are waste. Apply TDD once the shape is decided and the code will live.
+- **Legacy code → characterization first.** Before changing untested legacy code, pin its *current* behavior with characterization tests (assert what it does today, even if that's arguably wrong). That net lets you refactor safely; fix the behavior afterward in a deliberate RED.
+- **Coverage is a tool, not a goal.** 100% coverage of getters and trivial wiring proves nothing; a focused 80% over real logic and error paths is far stronger. Chase *behaviors covered*, not line percentage. Don't write a test purely to color a line green.
+
+## Anti-patterns to refuse
+
+- Testing getters/setters and other code with no behavior.
+- Asserting on private fields or internal state.
+- Spying on internal method calls / asserting call counts away from a real IO boundary.
+- Over-mocking — mocking collaborators you own and control.
+- Snapshot-everything: large auto-snapshots that nobody reads and everyone re-blesses on failure. Use targeted assertions; reserve snapshots for stable serialized output.
+- Tests that mirror the implementation line-by-line (restate the code as expectations).
+- Slow suites: real network/sleep/clock in unit tests. Keep the inner loop sub-second.
+
+See `test-smells.md` for a quick diagnostic list of brittle-test symptoms and their fixes. Related skills: `clean-code` (a pure functional core is what makes behavioral tests cheap, and tests are what make refactoring safe), `frontend-dev` and `aws-cdk` (the subjects under test), `performance` (keeping the suite fast enough to run on every change).
