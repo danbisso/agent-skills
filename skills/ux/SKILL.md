@@ -92,3 +92,39 @@ For each meaningful screen/region, design all that apply:
 - **Confirmations** restate the consequence: "Delete 3 invoices? This can't be undone."
 - **Labels & hints** short, front-load the keyword; hint text for format, not as the only label.
 
+## Live UX audit — including the browser
+Run audits against the *running* product, not assumptions.
+
+1. **Get the URL & flows.** Ask the user for the URL and the 1–3 critical tasks (e.g. sign-up, checkout). If none given, audit nav + primary task you can infer.
+2. **Drive a real browser if available**, in this order of preference:
+   - **Playwright MCP** (if its tools are present): navigate, click through each flow, capture screenshots, read the accessibility tree / snapshot, run keyboard-only traversal (Tab order), toggle `prefers-reduced-motion` and mobile viewport.
+   - **Headless browser via Bash:** if Playwright/Puppeteer/Chromium is installed, script navigation + screenshots + `axe-core` injection for an automated a11y pass. Check first (`npx playwright --version`, `which chromium`); install only with user consent.
+   - **Lighthouse / axe CLI** if available for accessibility + best-practices scores.
+3. **Fallback (no browser):** use `WebFetch` to pull the HTML and audit static structure (landmarks, headings, label associations, alt text, contrast from CSS, link text), and explicitly ask the user to walk you through the dynamic flow or send screenshots. State clearly which findings are static-only.
+4. **For each critical flow**, walk every state in the matrix and note friction at each step.
+5. **Score with the rubric below**, produce prioritized findings, then offer to spec fixes for `frontend-dev`.
+
+### Heuristic audit rubric
+Evaluate each flow/screen across: IA & findability, flow & error handling, the six states, the 10 heuristics, accessibility (keyboard/focus/contrast/semantics), microcopy. Rate each finding:
+
+| Severity | Meaning | Action |
+|---|---|---|
+| **S0 Blocker** | User cannot complete the task, or fully excludes keyboard/SR users | Fix before ship |
+| **S1 Major** | Frequent friction, data loss risk, or AA violation on a key path | Fix this cycle |
+| **S2 Moderate** | Slows or confuses some users; non-key-path a11y gap | Schedule |
+| **S3 Minor** | Polish, copy, edge-case nicety | Backlog |
+
+For every finding output: **location · severity · heuristic/WCAG ref · observed behavior · user impact · specific fix (interaction/markup/copy)**.
+
+**Example finding:**
+> **Checkout shipping form · S1 Major · WCAG 3.3.1 + Heuristic #9** — On a failed submit the page scrolls to top, errors appear only as red field borders with no text, and focus stays on the disabled button. Impact: screen-reader users get no error announcement; sighted users can't tell which fields failed or why; keyboard users are stranded. **Fix:** render an error string under each invalid field, set `aria-invalid="true"` + `aria-describedby="<errId>"`, move focus to the first invalid field on submit, and add a summary `aria-live="assertive"` region listing the errors. Keep all entered values.
+
+## How to spec UX for `frontend-dev`
+Deliver a lightweight, buildable spec — not prose:
+- **Flow note:** ordered steps with entry/exit conditions and every transition.
+- **State coverage:** for each screen, what to render in empty/loading/partial/error/success/offline.
+- **Acceptance criteria:** testable "Given/When/Then" statements (include keyboard & focus criteria, e.g. "When submit fails, focus moves to the first invalid field").
+- **Edge-case enumeration:** zero/one/many, max length, slow network, double-submit, back-button mid-flow, expired session, no-JS/partial-hydration, RTL if applicable.
+- **Copy table:** every label/button/error/empty string written out verbatim.
+
+See `accessibility-checklist.md` in this folder for a per-screen pre-ship checklist.
