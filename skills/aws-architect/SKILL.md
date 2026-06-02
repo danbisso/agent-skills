@@ -234,3 +234,32 @@ when services are autonomous and you optimize for decoupling and independent evo
 
 ---
 
+## Anti-patterns — call these out in review
+
+- **Lambda for long-polling / streaming waits** — you pay for idle wait and hit the 15-min wall.
+  Use a container consumer or WebSocket API + push.
+- **Step Functions Standard for a trivial 2-step flow** — per-transition cost and orchestration
+  overhead for nothing. Chain Lambdas or use SQS.
+- **EC2 for spiky low-volume work** — idle instance burn. Use Lambda/Fargate.
+- **Lambda directly opening RDS connections at scale** — connection exhaustion. Use RDS Proxy or
+  DynamoDB.
+- **Kinesis used as a plain task queue** — shard management overhead with no ordering/replay need.
+  Use SQS.
+- **cron inside a long-lived Lambda loop** — paying for sleep, losing delivery guarantees. Use
+  EventBridge Scheduler.
+- **No DLQ / no idempotency on at-least-once consumers** — silent message loss and duplicate
+  side-effects. Always add both.
+- **Lambda in a VPC "to be safe"** — needless cold-start + NAT cost when no private resource is
+  accessed.
+- **Choreography for a transaction that needs end-to-end tracking** — you lose visibility and
+  ordered compensation. Use Step Functions.
+
+---
+
+## Output of this skill
+
+Produce: chosen compute + why (vs the runner-up), coordination model, event/ingress mechanism, data
+stores, and the cross-cutting decisions (idempotency, DLQ, VPC, IAM scope, observability). Then
+**hand off to `aws-cdk`** to implement the wiring.
+
+See `compute-decision-matrix.md` for an expanded compute break-even and cold-start cheat sheet.
