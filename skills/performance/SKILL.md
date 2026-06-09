@@ -138,3 +138,15 @@ For a flame chart / main-thread analysis, capture a trace with `page.context().t
 - **Workers constraints:** no module-level connection pools (request-scoped runtime); build the db per request from `context`. Bounded CPU per request — push set-based work into SQL, use `ctx.waitUntil` for fire-and-forget so it doesn't block the response.
 - **Cold starts / caching layers:** if TTFB spikes are cold-start-driven on other infra, that's an `aws-architect` handoff. On Workers, add a caching layer (Cache API / KV) for hot, slow-to-compute responses.
 
+## Performance-review output format
+
+Deliver findings **ranked by measured impact, most-impactful first**. Each finding states: the metric and its before-number, the expected after, the specific fix, and the effort. No finding without a measurement.
+
+> ### 1. LCP — hero image lazy-loaded and unsized (HIGH impact, LOW effort)
+> **Measured:** LCP 4.8s (median of 3, mobile, 4× CPU + slow-4G). The LCP element is `<img class="hero">`, which has `loading="lazy"`, no dimensions, and is discovered late in the waterfall. Also drives CLS 0.18 (no reserved box).
+> **Fix:** Remove `loading="lazy"`, add `fetchpriority="high"`, set `width`/`height`, add `<link rel="preload" as="image">` for it, serve AVIF via `srcset`.
+> **Expected after:** LCP ≈ 2.3s (−2.5s, under budget), CLS ≈ 0.02.
+> **Effort:** ~1h, one component. Owner: `frontend-dev`; image variants with `designer`.
+
+Then findings 2, 3, … in the same shape. Close with the one-line budget verdict: which targets now pass, which still miss and why.
+
