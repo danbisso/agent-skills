@@ -286,3 +286,22 @@ test('no unsuppressed cdk-nag errors', () => {
 
 Wire `AwsSolutionsChecks` as an Aspect in the app entrypoint too, so `cdk synth` fails CI on violations, not just unit tests.
 
+## Operational guardrails
+
+- **`cdk diff` before every deploy.** Read it. A diff that destroys/replaces a stateful resource is a stop sign.
+- **Bootstrap** the target account/region once (`cdk bootstrap`) — it provisions the asset bucket, ECR repo, and deploy roles. Modern (`newStyleStackSynthesis`) bootstrap is the default; don't downgrade.
+- **`cdk.out`** is the synthesized cloud assembly — gitignore it. Commit `cdk.context.json` and `cdk.json`.
+- **Least privilege:** always `.grantX()`; never attach `AdministratorAccess` or `Action: '*'`. If you write a raw `PolicyStatement`, scope `resources` and `actions` explicitly.
+- **Deletion protection** on prod stateful: `terminationProtection: true` + `RemovalPolicy.RETAIN` + RDS/DynamoDB `deletionProtection`.
+- **Environment promotion:** same synthesized code, different config/env per stage; promote dev→staging→prod via CDK Pipelines or your CI, never by editing prod by hand.
+- **Assets:** Docker image and Lambda bundling happen at synth; keep build context small and pin base images by digest where possible.
+
+## Idioms & anti-patterns
+
+- **Don't set physical names** (`bucketName`, `tableName`, `functionName`) unless an external system requires them. A fixed physical name forces replace-on-change and blocks no-downtime updates; let CDK generate them.
+- **Keep logical IDs deterministic.** Don't rename constructs or reparent them casually — the logical ID is derived from the construct path; renaming = delete + recreate. To move a resource without recreating it, use `overrideLogicalId` or a refactor with CFN imports, deliberately.
+- **No `Fn.importValue` sprawl** — see cross-stack guidance above.
+- **One concern per stack file; one App entrypoint** (`bin/app.ts`) that wires stacks + env + tags + aspects.
+- **Never hard-code account IDs, ARNs, or secrets** in construct code — config object or SSM/Secrets lookup.
+
+See `construct-reference.md` for the import paths, `.grantX()` matrix, and Duration/Size/RemovalPolicy quick reference.
