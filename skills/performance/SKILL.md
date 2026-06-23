@@ -150,3 +150,11 @@ Deliver findings **ranked by measured impact, most-impactful first**. Each findi
 
 Then findings 2, 3, … in the same shape. Close with the one-line budget verdict: which targets now pass, which still miss and why.
 
+## Anti-patterns (refuse these)
+
+- **Optimizing without measuring** — every change must cite a before-number and predict an after.
+- **Micro-optimizing cold paths** — a 10ms saving on something that runs once at idle is noise; spend effort on the critical path.
+- **Premature memoization** — `useMemo`/`memo` everywhere; adds complexity and often slows things. Profile first.
+- **Shipping/benchmarking dev builds** — always a production build under throttling.
+- **Ignoring field data** — a green Lighthouse score with bad CrUX INP means your lab conditions don't match reality. Trust the field.
+- **Single-run conclusions** — measurements are noisy; take the median of ≥3 runs, same conditions.
