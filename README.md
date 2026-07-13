@@ -28,6 +28,7 @@ These skills encode a specific, opinionated stack and craft so you don't have to
 | [`clean-code`](skills/clean-code/SKILL.md) | Refactor toward clean, modular, DRY TypeScript — single source of truth, functional composition, redundancy removal. |
 | [`tdd`](skills/tdd/SKILL.md) | Drive code with behavior-first tests and a disciplined red-green-refactor loop — no testing of implementation details. |
 | [`performance`](skills/performance/SKILL.md) | Review and fix performance using browser devtools, Core Web Vitals, profiling, and bundle analysis. |
+| [`daniel-code-review`](skills/daniel-code-review/SKILL.md) | Review a diff, PR, or plan with Daniel Bissinger's engineering judgment — production truth, loud failure, customer/data impact, and simplicity — with calibrated severity and conversational feedback. |
 
 ## How skills relate
 
@@ -39,6 +40,8 @@ ux ────────┼──► frontend-design ──► frontend-dev �
 
 backend / heavier workloads:  aws-architect ──► aws-cdk
                                     └──► dynamodb-modeler (data model) ──► aws-cdk (provision)
+
+review:  daniel-code-review ◄── clean-code · tdd · performance (the standards it enforces)
 ```
 
 Each `SKILL.md` cross-links the siblings it most often hands off to.
